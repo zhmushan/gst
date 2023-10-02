@@ -7,7 +7,8 @@ use std::{
 use log::debug;
 
 fn home_dir() -> PathBuf {
-    PathBuf::from(var_os("HOME").unwrap())
+    let home_env_var = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+    PathBuf::from(var_os(home_env_var).unwrap())
 }
 
 fn cache_dir() -> PathBuf {
