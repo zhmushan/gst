@@ -1,72 +1,33 @@
 use std::{
-    fmt, fs,
+    fs,
     io::{self, Write},
     path::PathBuf,
 };
 
-use git2::Oid;
 use log::debug;
 
-use crate::{cache, error::AnyError, git_utils};
+use crate::{config::Config, error::AnyError};
 
-const GH: &str = "github.com";
-
-pub enum Site {
-    GH,
-}
-
-impl Site {
-    fn get_archive_url(&self, repo_id: &str, hash: &Oid) -> String {
-        match self {
-            Self::GH => format!(
-                "https://codeload.{}/{}/tar.gz/{}",
-                GH,
-                repo_id,
-                hash.to_string()
-            ),
-        }
-    }
-
-    fn get_host_url(&self) -> String {
-        match self {
-            Self::GH => format!("https://{}", GH),
-        }
-    }
-
-    fn get_dl_dirname(&self) -> String {
-        match self {
-            Self::GH => GH.to_string(),
-        }
-    }
-}
-
-pub struct Fetcher {
-    site: Site,
-
+#[derive(Debug)]
+pub struct Fetcher<'a> {
+    config: &'a mut Config,
+    repo: String,
     repo_org: String,
     repo_name: String,
-
-    repo_head_hash: Oid,
-
     maybe_subdir: Option<String>,
 }
 
-impl Fetcher {
-    pub fn new(site: Site, repo_id: &str) -> Self {
-        let parts = repo_id.splitn(3, '/').collect::<Vec<_>>();
+impl<'a> Fetcher<'a> {
+    pub fn new(config: &'a mut Config, repo: &str) -> Self {
+        let parts = repo.splitn(3, '/').collect::<Vec<_>>();
         if let [repo_org, repo_name, ..] = parts.as_slice() {
             let subdir = parts.get(2).copied();
 
-            let repo_head_hash = git_utils::get_head(
-                format!("{}/{}/{}", site.get_host_url(), repo_org, repo_name).as_str(),
-            )
-            .unwrap();
-
             Self {
-                site,
+                config,
+                repo: repo.to_string(),
                 repo_org: repo_org.to_string(),
                 repo_name: repo_name.to_string(),
-                repo_head_hash,
                 maybe_subdir: subdir.map(|s| s.to_string()),
             }
         } else {
@@ -74,8 +35,8 @@ impl Fetcher {
         }
     }
 
-    pub async fn go(&self, maybe_target: Option<String>) -> Result<(), AnyError> {
-        debug!("{}", &self);
+    pub async fn go(&mut self, maybe_target: Option<String>) -> Result<(), AnyError> {
+        debug!("{:#?}", &self);
         let archive_path = self.dl().await?;
         let target = maybe_target.map_or(
             match &self.maybe_subdir {
@@ -90,13 +51,12 @@ impl Fetcher {
         Ok(())
     }
 
-    async fn dl(&self) -> Result<PathBuf, AnyError> {
-        let output =
-            cache::ensure_dl_dir(format!("{}/{}", self.site.get_dl_dirname(), &self.repo_org))
-                .join(format!(
-                    "{}-{}.tar.gz",
-                    &self.repo_name, &self.repo_head_hash
-                ));
+    async fn dl(&mut self) -> Result<PathBuf, AnyError> {
+        let repo_hash = self.config.get_hash(&self.repo).unwrap();
+
+        let dl_dir = self.config.from.get_dl_dir(&self.repo_org);
+        let dl_filename = format!("{}-{}.tar.gz", &self.repo_name, &repo_hash);
+        let output = dl_dir.join(&dl_filename);
 
         let archive_exists = match fs::metadata(&output) {
             Ok(meta) => meta.is_file(),
@@ -106,9 +66,9 @@ impl Fetcher {
         if archive_exists {
             debug!("found cache: {}", output.display());
         } else {
-            let archive_url = self.site.get_archive_url(
+            let archive_url = self.config.from.get_archive_url(
                 format!("{}/{}", self.repo_org, self.repo_name).as_str(),
-                &self.repo_head_hash,
+                &repo_hash,
             );
             debug!("download {} to {}", archive_url, output.display());
 
@@ -163,25 +123,5 @@ impl Fetcher {
             .for_each(|p| debug!("> {}", p.display()));
 
         Ok(())
-    }
-}
-
-impl fmt::Display for Fetcher {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut res = format!(
-            r#"
-site: {}
-repo: {}
-hash: {}"#,
-            self.site.get_host_url(),
-            format!("{}/{}", self.repo_org, self.repo_name),
-            self.repo_head_hash,
-        );
-
-        if let Some(subdir) = &self.maybe_subdir {
-            res.push_str(format!("\nsubdir: {}", subdir).as_str());
-        };
-
-        writeln!(f, "{}", res)
     }
 }

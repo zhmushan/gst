@@ -1,6 +1,7 @@
 use std::{
     env::var_os,
-    fs::create_dir_all,
+    fs::{self, create_dir_all},
+    io::Write,
     path::{Path, PathBuf},
 };
 
@@ -23,10 +24,38 @@ fn cache_dir() -> PathBuf {
     root.join("zhmushan.gst")
 }
 
+fn ensure_cache_dir() -> PathBuf {
+    let cache_dir = cache_dir();
+    let _ = create_dir_all(&cache_dir);
+
+    cache_dir
+}
+
 pub fn ensure_dl_dir<P: AsRef<Path>>(path: P) -> PathBuf {
-    let dl_dir = cache_dir().join(path);
+    let dl_dir = ensure_cache_dir().join(path);
     debug!("download dir: {}", dl_dir.display());
     let _ = create_dir_all(&dl_dir);
 
     dl_dir
+}
+
+pub fn ensure_config_file() -> PathBuf {
+    let config_path = ensure_cache_dir().join("config.json");
+    if fs::metadata(&config_path).is_err() {
+        let mut file = fs::File::create(&config_path).unwrap();
+        let _ = file.write_all(
+            r#"{
+    "remote": {
+        "gh": "https://github.com"
+    },
+    "local": {
+        "gh": {}
+    },
+    "from": "gh"
+}"#
+            .as_bytes(),
+        );
+    }
+
+    config_path
 }
