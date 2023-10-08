@@ -25,7 +25,7 @@ impl<'a> Fetcher<'a> {
 
             Self {
                 config,
-                repo: repo.to_string(),
+                repo: format!("{}/{}", repo_org, repo_name),
                 repo_org: repo_org.to_string(),
                 repo_name: repo_name.to_string(),
                 maybe_subdir: subdir.map(|s| s.to_string()),
