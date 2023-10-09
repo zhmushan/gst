@@ -97,7 +97,7 @@ impl<'a> Fetcher<'a> {
         archive
             .entries()?
             .filter_map(|e| e.ok())
-            .map(|mut e| -> Option<PathBuf> {
+            .filter_map(|mut e| -> Option<PathBuf> {
                 let maybe_adopted_path =
                     e.path().unwrap().components().skip(1).collect::<PathBuf>();
                 let maybe_adopted_path = if let Some(subdir) = &self.maybe_subdir {
@@ -119,7 +119,6 @@ impl<'a> Fetcher<'a> {
                     None
                 }
             })
-            .filter_map(|p| p)
             .for_each(|p| debug!("> {}", p.display()));
 
         Ok(())

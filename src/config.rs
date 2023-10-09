@@ -2,7 +2,6 @@ use std::{collections::HashMap, fs, path::PathBuf};
 
 use log::debug;
 use serde::{Deserialize, Serialize};
-use serde_json;
 
 use crate::{
     cache::{self, ensure_config_file},
@@ -47,7 +46,7 @@ pub struct Config {
 impl Config {
     pub fn new() -> Self {
         let config_path = ensure_config_file();
-        let file_contents = fs::read_to_string(&config_path).unwrap();
+        let file_contents = fs::read_to_string(config_path).unwrap();
         serde_json::from_str(&file_contents).unwrap()
     }
 
@@ -56,7 +55,7 @@ impl Config {
             git_utils::get_head(format!("{}/{}", self.from.get_host_url(), repo).as_str())?
                 .to_string();
         if !self.get_hash(repo).is_some_and(|hash| hash.eq(&new_hash)) {
-            let repo_cache = self.local.entry(self.from).or_insert(HashMap::new());
+            let repo_cache = self.local.entry(self.from).or_default();
             repo_cache.insert(repo.to_string(), new_hash);
             let _ = self.apply();
         }
