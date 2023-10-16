@@ -5,6 +5,7 @@ use fetcher::Fetcher;
 
 mod cache;
 mod config;
+mod console;
 mod error;
 mod fetcher;
 mod git_utils;

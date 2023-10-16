@@ -1,12 +1,16 @@
 use std::{
-    fs,
+    fs::{self, create_dir_all, remove_dir_all},
     io::{self, Write},
     path::PathBuf,
 };
 
 use log::debug;
 
-use crate::{config::Config, error::AnyError};
+use crate::{
+    config::Config,
+    console::{P, S},
+    error::AnyError,
+};
 
 #[derive(Debug)]
 pub struct Fetcher<'a> {
@@ -88,6 +92,9 @@ impl<'a> Fetcher<'a> {
         archive_path: &PathBuf,
         target: &PathBuf,
     ) -> Result<(), AnyError> {
+        let _ = remove_dir_all(target);
+        let _ = create_dir_all(target);
+
         let archive_file = fs::File::open(archive_path)?;
         let gz_decoder = flate2::read::GzDecoder::new(archive_file);
         let reader = io::BufReader::new(gz_decoder);
@@ -119,7 +126,19 @@ impl<'a> Fetcher<'a> {
                     None
                 }
             })
-            .for_each(|p| debug!("> {}", p.display()));
+            .for_each(|p| {
+                print!("{}", p.display().to_string().pin());
+            });
+
+        println!(
+            "{}",
+            format!(
+                "Done. Your project has been placed at `{}`",
+                target.p_display(),
+            )
+            .bold()
+            .pin()
+        );
 
         Ok(())
     }
