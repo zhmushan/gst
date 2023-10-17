@@ -28,9 +28,38 @@ jobs:
       - name: Format
         if: contains(matrix.os, 'ubuntu')
         run: cargo fmt --all -- --check
-      - name: Build
-        run: cargo build --locked --release --all-targets --all-features
       - name: Test
         run: cargo test --locked --release --all-targets --all-features
       - name: Lint
         run: cargo clippy --all-targets --all-features --release --locked -- -D clippy::all
+      - name: Build
+        run: cargo build --locked --release --all-targets --all-features
+
+      - name: Pre-release (linux)
+        if: startsWith(matrix.os, 'ubuntu') && github.repository == 'zhmushan/gst'
+        run: |-
+          cd target/release
+          zip -r gst-x86_64-unknown-linux-gnu.zip gst
+
+      - name: Pre-release (macos)
+        if: startsWith(matrix.os, 'macos') && github.repository == 'zhmushan/gst'
+        run: |-
+          cd target/release
+          zip -r gst-x86_64-apple-darwin.zip gst
+
+      - name: Pre-release (windows)
+        if: startsWith(matrix.os, 'windows') && github.repository == 'zhmushan/gst'
+        shell: pwsh
+        run: Compress-Archive -CompressionLevel Optimal -Force -Path target/release/gst.exe -DestinationPath target/release/gst-x86_64-pc-windows-msvc.zip
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: |
+          github.repository == 'zhmushan/gst' &&
+          startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            target/release/gst-x86_64-pc-windows-msvc.zip
+            target/release/gst-x86_64-unknown-linux-gnu.zip
+            target/release/gst-x86_64-apple-darwin.zip
+          prerelease: ${{ github.ref == 'refs/tags/pre-release' }}
