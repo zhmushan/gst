@@ -2,13 +2,14 @@ use std::{
     fs::{self, create_dir_all, remove_dir_all},
     io::{self, Write},
     path::PathBuf,
+    process::exit,
 };
 
 use log::debug;
 
 use crate::{
     config::Config,
-    console::{P, S},
+    console::{confirm, P, S},
     error::AnyError,
 };
 
@@ -39,9 +40,8 @@ impl<'a> Fetcher<'a> {
         }
     }
 
-    pub async fn go(&mut self, maybe_target: Option<String>) -> Result<(), AnyError> {
+    pub async fn go(&mut self, maybe_target: Option<String>, force: bool) -> Result<(), AnyError> {
         debug!("{:#?}", &self);
-        let archive_path = self.dl().await?;
         let target = maybe_target.map_or(
             match &self.maybe_subdir {
                 Some(subdir) => subdir.split('/').last().unwrap().to_owned(),
@@ -50,6 +50,27 @@ impl<'a> Fetcher<'a> {
             |s| s,
         );
         let target = PathBuf::from(target);
+
+        if force {
+            remove_dir_all(&target).unwrap();
+        } else if target.exists() && fs::read_dir(&target).unwrap().count() > 0 {
+            let confirmed = confirm(
+                format!(
+                    "Target directory `{}` is not empty. Remove existing files and continue?",
+                    target.to_path_buf().p_display()
+                )
+                .bold()
+                .as_str(),
+            );
+
+            if confirmed {
+                remove_dir_all(&target).unwrap();
+            } else {
+                exit(0);
+            }
+        }
+
+        let archive_path = self.dl().await?;
         self.generate_from_archive(&archive_path, &target).await?;
 
         Ok(())
@@ -92,8 +113,7 @@ impl<'a> Fetcher<'a> {
         archive_path: &PathBuf,
         target: &PathBuf,
     ) -> Result<(), AnyError> {
-        let _ = remove_dir_all(target);
-        let _ = create_dir_all(target);
+        create_dir_all(target).unwrap();
 
         let archive_file = fs::File::open(archive_path)?;
         let gz_decoder = flate2::read::GzDecoder::new(archive_file);

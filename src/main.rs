@@ -16,12 +16,13 @@ async fn main() -> Result<(), AnyError> {
 
     let mut config = Config::new();
     let cli = Cli::parse();
+
     if cli.reload || config.get_hash(&cli.repo).is_none() {
         let _ = config.update_hash(&cli.repo);
     }
 
     let mut fetcher = Fetcher::new(&mut config, &cli.repo);
-    fetcher.go(cli.project_name).await?;
+    fetcher.go(cli.project_name, cli.force).await?;
 
     Ok(())
 }
@@ -33,4 +34,7 @@ struct Cli {
 
     #[arg(short, long)]
     reload: bool,
+
+    #[arg(short, long)]
+    force: bool,
 }
